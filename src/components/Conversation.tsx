@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, SubmitHandler } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 
@@ -7,10 +7,18 @@ const messageSchema = z.object({
   content: z.string().min(1, 'Message cannot be empty'),
 })
 
+type MessageFormData = z.infer<typeof messageSchema>
+
 type Message = {
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
+  feedback?: {
+    accuracy: number
+    issues: string[]
+    positives: string[]
+    tips: string[]
+  }
 }
 
 type ConversationProps = {
@@ -34,7 +42,7 @@ export default function Conversation({
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm({
+  } = useForm<MessageFormData>({
     resolver: zodResolver(messageSchema),
   })
 
@@ -46,7 +54,7 @@ export default function Conversation({
     scrollToBottom()
   }, [messages])
 
-  const onSubmit = async (data: { content: string }) => {
+  const onSubmit: SubmitHandler<MessageFormData> = async (data) => {
     try {
       setIsLoading(true)
       const userMessage: Message = {
@@ -77,15 +85,16 @@ export default function Conversation({
         throw new Error('Failed to send message')
       }
 
-      const { aiResponse } = await response.json()
+      const { aiResponse, conversation } = await response.json()
 
-      // Add AI response
+      // Add AI response with feedback
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: aiResponse,
+          content: aiResponse.response,
           timestamp: new Date(),
+          feedback: conversation.conversationLog[conversation.conversationLog.length - 1].feedback,
         },
       ])
 
@@ -109,17 +118,71 @@ export default function Conversation({
               message.role === 'user' ? 'justify-end' : 'justify-start'
             }`}
           >
-            <div
-              className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                message.role === 'user'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-900'
-              }`}
-            >
-              <p className="text-sm">{message.content}</p>
-              <p className="mt-1 text-xs opacity-70">
-                {new Date(message.timestamp).toLocaleTimeString()}
-              </p>
+            <div className="flex flex-col max-w-[80%]">
+              <div
+                className={`rounded-lg px-4 py-2 ${
+                  message.role === 'user'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 text-gray-900'
+                }`}
+              >
+                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <p className="mt-1 text-xs opacity-70">
+                  {new Date(message.timestamp).toLocaleTimeString()}
+                </p>
+              </div>
+
+              {/* Feedback section for AI messages */}
+              {message.role === 'assistant' && message.feedback && (
+                <div className="mt-2 space-y-2">
+                  {/* Accuracy indicator */}
+                  <div className="flex items-center space-x-2">
+                    <div className="flex-1 h-2 bg-gray-200 rounded-full">
+                      <div
+                        className="h-2 bg-primary-500 rounded-full"
+                        style={{ width: `${message.feedback.accuracy}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-500">
+                      {message.feedback.accuracy}% accuracy
+                    </span>
+                  </div>
+
+                  {/* Feedback details */}
+                  {message.feedback.issues.length > 0 && (
+                    <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                      <p className="font-medium">Areas for improvement:</p>
+                      <ul className="list-disc list-inside">
+                        {message.feedback.issues.map((issue, i) => (
+                          <li key={i}>{issue}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {message.feedback.positives.length > 0 && (
+                    <div className="text-sm text-green-600 bg-green-50 p-2 rounded">
+                      <p className="font-medium">Well done!</p>
+                      <ul className="list-disc list-inside">
+                        {message.feedback.positives.map((positive, i) => (
+                          <li key={i}>{positive}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {message.feedback.tips.length > 0 && (
+                    <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
+                      <p className="font-medium">Learning tips:</p>
+                      <ul className="list-disc list-inside">
+                        {message.feedback.tips.map((tip, i) => (
+                          <li key={i}>{tip}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -140,7 +203,7 @@ export default function Conversation({
               className="input-primary"
               disabled={isLoading}
             />
-            {errors.content && (
+            {errors.content?.message && (
               <p className="mt-1 text-sm text-red-600">
                 {errors.content.message}
               </p>

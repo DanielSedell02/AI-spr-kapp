@@ -51,32 +51,29 @@
 
 @layer base {
   * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
+    @apply border;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white rounded-md shadow-sm bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-md bg-secondary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-secondary-700 focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white rounded-md shadow-sm bg-secondary-600 hover:bg-secondary-700 focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
   }
 
   .input-primary {
-    @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm;
+    @apply block w-full border-gray-300 rounded-md shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm;
   }
 
   .card {
-    @apply rounded-lg border border-gray-200 bg-white shadow-sm;
+    @apply bg-white border border-gray-200 rounded-lg shadow-sm;
   }
 
   .card-header {
-    @apply border-b border-gray-200 px-4 py-5 sm:px-6;
+    @apply px-4 py-5 border-b border-gray-200 sm:px-6;
   }
 
   .card-body {
@@ -84,6 +81,6 @@
   }
 
   .card-footer {
-    @apply border-t border-gray-200 px-4 py-4 sm:px-6;
+    @apply px-4 py-4 border-t border-gray-200 sm:px-6;
   }
 } 

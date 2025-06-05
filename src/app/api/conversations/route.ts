@@ -2,14 +2,10 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { headers } from 'next/headers'
 import { jwtVerify } from 'jose'
-import OpenAI from 'openai'
 import connectDB from '@/lib/mongodb'
 import { Conversation } from '@/models/Conversation'
 import { User } from '@/models/User'
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+import { generateConversationResponse } from '@/services/openai'
 
 const messageSchema = z.object({
   content: z.string().min(1),
@@ -55,36 +51,34 @@ export async function POST(request: Request) {
       )
     }
 
-    // Create system prompt based on user's level and preferences
-    const systemPrompt = `You are a ${aiPersona} helping a ${user.languageLevel} level student learn ${user.targetLanguage}.
-Their native language is ${user.nativeLanguage}.
-Their interests include: ${user.interests.join(', ')}.
-Their learning goals are: ${user.learningGoals.join(', ')}.
+    // Get previous messages for context
+    const previousConversation = await Conversation.findOne({
+      userId,
+      topic,
+      difficultyLevel,
+      aiPersona,
+    }).sort({ 'conversationLog.timestamp': -1 }).limit(5)
 
-Guidelines:
-1. Keep conversations related to their interests
-2. Adapt vocabulary and grammar to their level
-3. Correct mistakes kindly and explain why
-4. Ask follow-up questions to keep the conversation going
-5. Introduce 2-3 new words naturally per conversation
-6. When they make a mistake, correct them like this: "Good try! Instead of '[wrong]' you can say '[correct]'. It means [explanation]."
+    const previousMessages = previousConversation?.conversationLog
+      .slice(-5)
+      .map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      })) || []
 
-Always respond in ${user.targetLanguage}, but explain difficult concepts in ${user.nativeLanguage} if needed.`
+    // Generate AI response using our service
+    const aiResponse = await generateConversationResponse(
+      {
+        user,
+        topic,
+        difficultyLevel,
+        aiPersona,
+        previousMessages,
+      },
+      message.content
+    )
 
-    // Get AI response
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: message.role, content: message.content },
-      ],
-      temperature: 0.7,
-      max_tokens: 150,
-    })
-
-    const aiResponse = completion.choices[0].message.content
-
-    // Create or update conversation
+    // Create or update conversation with structured feedback
     const conversation = await Conversation.findOneAndUpdate(
       {
         userId,
@@ -102,10 +96,21 @@ Always respond in ${user.targetLanguage}, but explain difficult concepts in ${us
             },
             {
               role: 'assistant',
-              content: aiResponse,
+              content: aiResponse.response,
               timestamp: new Date(),
+              feedback: {
+                accuracy: aiResponse.correction.hasError ? 80 : 100,
+                issues: aiResponse.correction.hasError ? [aiResponse.correction.explanation] : [],
+                positives: aiResponse.correction.hasError ? ['Good attempt!'] : ['Perfect!'],
+                tips: aiResponse.newWords.map(word => 
+                  `New word: ${word.word} - ${word.translation}. Example: ${word.example}`
+                ),
+              },
             },
           ],
+        },
+        $addToSet: {
+          improvementAreas: aiResponse.correction.hasError ? aiResponse.correction.explanation : [],
         },
       },
       {
@@ -113,6 +118,15 @@ Always respond in ${user.targetLanguage}, but explain difficult concepts in ${us
         new: true,
       }
     )
+
+    // Update user's progress based on the interaction
+    if (aiResponse.correction.hasError) {
+      user.progress.grammarScore = Math.min(100, user.progress.grammarScore + 1)
+    } else {
+      user.progress.confidenceLevel = Math.min(100, user.progress.confidenceLevel + 2)
+    }
+    user.progress.lastActive = new Date()
+    await user.save()
 
     return NextResponse.json({
       conversation,

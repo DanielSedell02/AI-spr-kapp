@@ -133,6 +133,6 @@ const features = [
   },
   {
     name: 'Cultural Context',
-    description: 'Understand the cultural nuances and context behind the language you're learning.',
+    description: 'Understand the cultural nuances and context behind the language you\'re learning.',
   },
 ] 
